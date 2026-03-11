@@ -97,7 +97,7 @@ class App(tk.Tk):
         super().__init__()
         self.title("Image Splicer")
         self.configure(bg=BG)
-        self.minsize(920, 640)
+        self.minsize(1100, 540)
 
         self.cfg        = load_cfg()
         self.pil_img    = None
@@ -111,39 +111,59 @@ class App(tk.Tk):
 
         self._build()
         self._setup_bindings()
+        # Initialise save-location tooltip with whatever is already configured
+        self._update_save_tip(self.cfg.get("save_dir", "(not set)"))
         self._status("Open an image to get started  —  or drag & drop a file onto the window.")
 
     # ── build UI ──────────────────────────────────────────────────────────────
 
     def _build(self):
+        import platform
+        self._is_mac = platform.system() == "Darwin"
+        mod = "Cmd" if self._is_mac else "Ctrl"
+
         # toolbar
         tb = tk.Frame(self, bg=PANEL, height=50)
         tb.pack(fill=tk.X)
         tb.pack_propagate(False)
 
-        self._btn(tb, "⊞  Open Image",    self._open_file,  ACCENT ).pack(side=tk.LEFT, padx=(10,4), pady=10)
-        self._btn(tb, "⌂  Save Location", self._set_save,   ACCENT2).pack(side=tk.LEFT, padx=4, pady=10)
-        self._btn(tb, "✦  Save Crops",    self._save_crops, GREEN  ).pack(side=tk.LEFT, padx=4, pady=10)
+        self._btn(tb, "⊞  Open Image",    self._open_file,  ACCENT,
+                  tip=f"Open image ({mod}+O)").pack(side=tk.LEFT, padx=(10,4), pady=10)
+
+        # Save Location: tooltip shows current path
+        self._save_tip_text = tk.StringVar(
+            value="Save location: " + self.cfg.get("save_dir", "(not set)"))
+        save_btn = self._btn(tb, "⌂  Save Location", self._set_save, ACCENT2)
+        save_btn.pack(side=tk.LEFT, padx=4, pady=10)
+        self._tooltip(save_btn, "")          # placeholder; updated dynamically
+        self._save_btn = save_btn            # keep ref so we can update tip text
+
+        self._btn(tb, "✦  Save Crops",    self._save_crops, GREEN,
+                  tip=f"Save all crops ({mod}+S)").pack(side=tk.LEFT, padx=4, pady=10)
         tk.Frame(tb, bg=ACCENT, width=2, height=30).pack(side=tk.LEFT, padx=10, pady=10)
-        self._btn(tb, "⌫  Delete Sel",    self._del_sel,    DIMGREY).pack(side=tk.LEFT, padx=4, pady=10)
-        self._btn(tb, "✕  Clear All",     self._clear_all,  DIMGREY).pack(side=tk.LEFT, padx=4, pady=10)
+        self._btn(tb, "⌫  Delete Sel",    self._del_sel,    DIMGREY,
+                  tip="Delete selected  (Delete / Backspace)").pack(side=tk.LEFT, padx=4, pady=10)
+        self._btn(tb, "✕  Clear All",     self._clear_all,  DIMGREY,
+                  tip="Clear all selections").pack(side=tk.LEFT, padx=4, pady=10)
 
         # Keep-selections checkbox
         tk.Frame(tb, bg=ACCENT, width=2, height=30).pack(side=tk.LEFT, padx=10, pady=10)
         self.keep_var = tk.BooleanVar(value=self.cfg.get("keep_sels", True))
-        tk.Checkbutton(tb, text="Keep selections", variable=self.keep_var,
+        ck = tk.Checkbutton(tb, text="Keep selections", variable=self.keep_var,
                        bg=PANEL, fg=TEXT, selectcolor=ACCENT2,
                        activebackground=PANEL, activeforeground=TEXT,
                        font=FSM, bd=0, cursor="hand2",
-                       command=self._on_keep_toggle).pack(side=tk.LEFT, padx=(0,4))
+                       command=self._on_keep_toggle)
+        ck.pack(side=tk.LEFT, padx=(0,4))
+        self._tooltip(ck, "Keep selections when loading a new image")
 
-        self.savedir_lbl = tk.StringVar(value=self.cfg.get("save_dir", "(no save location set)"))
-        tk.Label(tb, textvariable=self.savedir_lbl, bg=PANEL, fg=TEXTDIM,
-                 font=FSM).pack(side=tk.LEFT, padx=14)
-
-        self._btn(tb, "−", self._zoom_out, ACCENT2, w=3).pack(side=tk.RIGHT, padx=(4,10), pady=10)
-        self._btn(tb, "+", self._zoom_in,  ACCENT2, w=3).pack(side=tk.RIGHT, padx=4,     pady=10)
-        self._btn(tb, "⊡", self._zoom_fit,  ACCENT2, w=3).pack(side=tk.RIGHT, padx=4,     pady=10)
+        # Zoom controls (packed right-to-left)
+        self._btn(tb, "−", self._zoom_out, ACCENT2, w=3,
+                  tip="Zoom out  (Ctrl+Scroll)").pack(side=tk.RIGHT, padx=(4,10), pady=10)
+        self._btn(tb, "+", self._zoom_in,  ACCENT2, w=3,
+                  tip="Zoom in  (Ctrl+Scroll)").pack(side=tk.RIGHT, padx=4, pady=10)
+        self._btn(tb, "⊡", self._zoom_fit, ACCENT2, w=3,
+                  tip="Fit image to window").pack(side=tk.RIGHT, padx=4, pady=10)
         self.zoom_lbl = tk.StringVar(value="100%")
         tk.Label(tb, textvariable=self.zoom_lbl, bg=PANEL, fg=TEXT,
                  font=FSM, width=6).pack(side=tk.RIGHT)
@@ -218,7 +238,38 @@ class App(tk.Tk):
         tk.Label(sb, textvariable=self.coord_var,  bg=PANEL, fg=TEXTDIM,
                  font=FSM, anchor="e").pack(side=tk.RIGHT, padx=10)
 
-    def _btn(self, parent, text, cmd, color, w=None):
+    # ── tooltip ───────────────────────────────────────────────────────────────
+
+    def _tooltip(self, widget, text):
+        """Attach a hover tooltip to any widget."""
+        tip = None
+        def _show(e):
+            nonlocal tip
+            tip = tk.Toplevel(self)
+            tip.wm_overrideredirect(True)
+            tip.wm_attributes("-topmost", True)
+            lbl = tk.Label(tip, text=text, bg="#2a2a4a", fg=TEXT,
+                           font=FSM, relief=tk.FLAT, bd=0, padx=8, pady=4)
+            lbl.pack()
+            tip.update_idletasks()
+            x = e.x_root + 12
+            y = e.y_root + 18
+            # keep on screen
+            sw = self.winfo_screenwidth()
+            if x + tip.winfo_width() > sw:
+                x = e.x_root - tip.winfo_width() - 4
+            tip.wm_geometry(f"+{x}+{y}")
+        def _hide(e):
+            nonlocal tip
+            if tip:
+                try: tip.destroy()
+                except Exception: pass
+                tip = None
+        widget.bind("<Enter>", _show, add="+")
+        widget.bind("<Leave>", _hide, add="+")
+        widget.bind("<ButtonPress-1>", _hide, add="+")
+
+    def _btn(self, parent, text, cmd, color, w=None, tip=None):
         # Use Label instead of Button so macOS Tk honours bg/fg colours.
         kw = dict(text=text, bg=color, fg=TEXT, font=FUI,
                   cursor="hand2", padx=10, pady=5,
@@ -230,6 +281,8 @@ class App(tk.Tk):
         b.bind("<Leave>",          lambda e, b=b, c=color: b.configure(bg=c))
         b.bind("<ButtonPress-1>",  lambda e, b=b, c=color: b.configure(bg=self._darken(c)))
         b.bind("<ButtonRelease-1>",lambda e, b=b, c=color, f=cmd: (b.configure(bg=self._lighten(c)), f()))
+        if tip:
+            self._tooltip(b, tip)
         return b
 
     @staticmethod
@@ -810,9 +863,13 @@ class App(tk.Tk):
         d = filedialog.askdirectory(title="Choose save folder")
         if d:
             self.cfg["save_dir"] = d
-            self.savedir_lbl.set(d)
+            self._update_save_tip(d)
             save_cfg(self.cfg)
             self._status(f"Save location: {d}")
+
+    def _update_save_tip(self, path):
+        """Refresh the Save Location button's tooltip text."""
+        self._tooltip(self._save_btn, f"Save location: {path}")
 
     def _persist(self, key, val):
         self.cfg[key] = val
