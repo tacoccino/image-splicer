@@ -716,7 +716,6 @@ class App(tk.Tk):
             if errors:
                 msg += "\n\nErrors:\n" + "\n".join(errors)
             self.after(0, lambda: self._status(f"✓ Saved {len(saved)} crops → {sd}"))
-            self.after(0, lambda: messagebox.showinfo("Done", msg))
 
         threading.Thread(target=worker, daemon=True).start()
 
