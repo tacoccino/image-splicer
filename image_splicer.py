@@ -319,7 +319,7 @@ class App(tk.Tk):
         # Strategy 2: Windows — hook WM_DROPFILES via ctypes directly.
         # No extra packages needed; works by subclassing the HWND and
         # intercepting the drop message before tkinter sees it.
-        if not self._dnd_ok:
+        if not self._dnd_ok and sys.platform == "win32":
             try:
                 self._setup_win32_dnd()
             except Exception:
