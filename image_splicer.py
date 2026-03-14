@@ -29,6 +29,7 @@ def dlog(*args):
     if DEBUG:
         print("[dnd]", *args)
 
+
 # ── palette ──────────────────────────────────────────────────────────────────
 BG       = "#1a1a2e"
 PANEL    = "#16213e"
@@ -306,38 +307,13 @@ class App(tk.Tk):
         self._persist("keep_sels", self.keep_var.get())
 
     def _setup_bindings(self):
-        # Strategy 1: tkdnd (cross-platform, optional)
+        # Drag and drop — Windows only for now
         self._dnd_ok = False
-        try:
-            self.tk.call("package", "require", "tkdnd")
-            self.drop_target_register("DND_Files")
-            self.dnd_bind("<<Drop>>", self._on_dnd_tkdnd)
-            self._dnd_ok = True
-        except Exception:
-            pass
-
-        # Strategy 2: Windows — hook WM_DROPFILES via ctypes directly.
-        # No extra packages needed; works by subclassing the HWND and
-        # intercepting the drop message before tkinter sees it.
-        if not self._dnd_ok and sys.platform == "win32":
+        if sys.platform == "win32":
             try:
                 self._setup_win32_dnd()
             except Exception:
                 pass
-
-        # Strategy 3: macOS native tk::mac::OpenDocument
-        # This fires when files are dragged onto the window on macOS.
-        # We must use tk.eval (not tk.call) so that $args is treated as a
-        # literal Tcl variable reference in the proc body, not expanded now.
-        if not self._dnd_ok:
-            try:
-                _cb = self.register(self._on_mac_drop)
-                self.tk.eval(
-                    f'proc ::tk::mac::OpenDocument {{args}} {{ {_cb} $args }}'
-                )
-                self._dnd_ok = True
-            except Exception as e:
-                dlog("Mac DnD setup error:", e)
 
         self.canvas.bind("<ButtonPress-1>",   self._press)
         self.canvas.bind("<B1-Motion>",        self._move)
@@ -383,13 +359,6 @@ class App(tk.Tk):
 
         self.bind("<Configure>", self._on_win_resize)
         self.canvas.focus_set()
-
-    def _on_dnd_tkdnd(self, event):
-        path = event.data.strip()
-        if path.startswith("{") and path.endswith("}"):
-            path = path[1:-1]
-        path = path.split("} {")[0]
-        self._try_load(path.strip())
 
     def _setup_win32_dnd(self):
         """Schedule Win32 DnD setup after mainloop starts so tkinter's
@@ -497,15 +466,6 @@ class App(tk.Tk):
                 self._try_load(path)
             self.after(50, poll_drop)
         self.after(50, poll_drop)
-
-    def _on_mac_drop(self, *args):
-        # Tcl may pass args as one space-joined string or multiple tokens
-        if len(args) == 1 and isinstance(args[0], str):
-            parts = args[0].split()
-        else:
-            parts = [str(a) for a in args]
-        if parts:
-            self._try_load(parts[0].strip())
 
     def _pan_start(self, event):
         self.canvas.configure(cursor="fleur")
