@@ -1163,15 +1163,15 @@ class MainWindow(QMainWindow):
         """Reload QSS with current accent colour and theme."""
         accent  = self.cfg.get("accent",  "#e94560")
         dark    = self.cfg.get("theme", "dark") == "dark"
-        bg      = "#1a1a2e" if dark else "#f0f2f5"
-        panel   = "#16213e" if dark else "#dde1ea"
-        canvas_bg = "#0d0d1a" if dark else "#c8ccd8"
-        btn_base  = "#0f3460" if dark else "#c0c8d8"
-        btn_top   = "#1a4070" if dark else "#d0d8e8"
-        text    = "#eaeaea" if dark else "#1a1a2e"
-        textdim = "#8888aa" if dark else "#555577"
+        bg        = "#1a1a2e" if dark else "#f0f2f5"
+        panel     = "#16213e" if dark else "#dde1ea"
+        canvas_bg = "#0d0d1a" if dark else "#c0c4d0"
+        btn_base  = "#0f3460" if dark else "#b8c4d8"
+        btn_top   = "#1a4070" if dark else "#cad4e8"
+        text      = "#eaeaea" if dark else "#1a1a2e"
+        textdim   = "#8888aa" if dark else "#555577"
         qss = _load_qss()
-        # Replace all theme tokens — order matters (longer/specific first)
+        # Replace all theme tokens — longest/most specific first
         qss = (qss
             .replace("#1a4070", btn_top)
             .replace("#0f3460", btn_base)
@@ -1179,6 +1179,7 @@ class MainWindow(QMainWindow):
             .replace("#1a1a2e", bg)
             .replace("#0d0d1a", canvas_bg)
             .replace("#eaeaea", text)
+            .replace("#ffffff", text)     # white text on green buttons
             .replace("#8888aa", textdim)
             .replace("#e94560", accent)
         )
