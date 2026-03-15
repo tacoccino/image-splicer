@@ -99,11 +99,12 @@ QSS = _load_qss()
 # ── selection data ────────────────────────────────────────────────────────────
 class Sel:
     """A region stored in image-space pixels (floats)."""
-    def __init__(self, ix1, iy1, ix2, iy2):
+    def __init__(self, ix1, iy1, ix2, iy2, name=""):
         self.ix1 = min(ix1, ix2)
         self.iy1 = min(iy1, iy2)
         self.ix2 = max(ix1, ix2)
         self.iy2 = max(iy1, iy2)
+        self.name = name
 
     def rect(self):
         return (self.ix1, self.iy1, self.ix2, self.iy2)
@@ -165,7 +166,8 @@ class SelItem(QGraphicsRectItem):
         scene_rect = self.canvas.img_to_scene(s.ix1, s.iy1, s.ix2, s.iy2)
         self.setRect(scene_rect)
         self.set_active(self._active)
-        self._label.setPlainText(f"#{self.idx+1}")
+        display = self.sel.name if self.sel.name else f"#{self.idx+1}"
+        self._label.setPlainText(display)
         # Scale font so it appears ~14px on screen regardless of zoom
         zoom = max(0.1, self.canvas.zoom)
         pt = max(7, int(14 / zoom))
@@ -606,11 +608,59 @@ class Toast(QLabel):
 
 # ── side panel ────────────────────────────────────────────────────────────────
 
+class SelRow(QWidget):
+    """One row: index badge + editable name + size label."""
+    def __init__(self, sel, idx, on_name_change, parent=None):
+        super().__init__(parent)
+        self.sel = sel
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(6, 3, 6, 3)
+        lay.setSpacing(6)
+
+        self._badge = QLabel(f"#{idx+1}")
+        self._badge.setObjectName("sel_badge")
+        self._badge.setFixedWidth(26)
+        self._badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self._badge)
+
+        self._name_edit = QLineEdit(sel.name)
+        self._name_edit.setPlaceholderText(f"#{idx+1}")
+        self._name_edit.setToolTip("Name this selection (used in saved filename)")
+        self._name_edit.textChanged.connect(lambda t, s=sel, fn=on_name_change:
+            self._name_changed(t, s, fn))
+        lay.addWidget(self._name_edit, stretch=1)
+
+        w = abs(int(sel.ix2 - sel.ix1))
+        h = abs(int(sel.iy2 - sel.iy1))
+        self._size_lbl = QLabel(f"{w}×{h}")
+        self._size_lbl.setObjectName("dimmed")
+        self._size_lbl.setFixedWidth(66)
+        self._size_lbl.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        lay.addWidget(self._size_lbl)
+
+    def _name_changed(self, text, sel, callback):
+        sel.name = text.strip()
+        callback()
+
+    def update_size(self, sel):
+        w = abs(int(sel.ix2 - sel.ix1))
+        h = abs(int(sel.iy2 - sel.iy1))
+        self._size_lbl.setText(f"{w}×{h}")
+
+    def set_active(self, active):
+        # highlight background when active
+        bg = "#1a2a4a" if active else "transparent"
+        self.setStyleSheet(f"QWidget {{ background: {bg}; border-radius: 3px; }}")
+
+
 class SidePanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumWidth(160)
         self.setObjectName("sidepanel")
+        self._rows = []
+        self._name_change_cb = lambda: None
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 12, 8, 12)
@@ -626,28 +676,55 @@ class SidePanel(QWidget):
         sep.setObjectName("accent_sep")
         lay.addWidget(sep)
 
-        self.list_widget = QListWidget()
-        lay.addWidget(self.list_widget, stretch=1)
+        # Scrollable rows area
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._container = QWidget()
+        self._container.setObjectName("sidepanel")
+        self._list_lay = QVBoxLayout(self._container)
+        self._list_lay.setContentsMargins(0, 0, 0, 0)
+        self._list_lay.setSpacing(2)
+        self._list_lay.addStretch()
+        self._scroll.setWidget(self._container)
+        lay.addWidget(self._scroll, stretch=1)
 
-        # Keep selections checkbox at the bottom of the panel
+        # Bottom: prefix + keep selections
         bot_sep = QFrame()
         bot_sep.setFrameShape(QFrame.Shape.HLine)
         bot_sep.setObjectName("accent_sep")
         lay.addWidget(bot_sep)
+
+        prefix_lbl = QLabel("Filename prefix:")
+        prefix_lbl.setObjectName("dimmed")
+        lay.addWidget(prefix_lbl)
+        self.prefix_edit = QLineEdit()
+        self.prefix_edit.setPlaceholderText("crop")
+        self.prefix_edit.setToolTip("Prefix for saved filenames: prefix_name.ext")
+        lay.addWidget(self.prefix_edit)
+
         self.keep_chk = QCheckBox("Keep selections")
         self.keep_chk.setToolTip("Keep selections when loading a new image")
         lay.addWidget(self.keep_chk)
 
-    def refresh(self, sels, active_idx, on_delete):
-        self.list_widget.clear()
-        for i, s in enumerate(sels):
-            w = abs(int(s.ix2 - s.ix1))
-            h = abs(int(s.iy2 - s.iy1))
-            item = QListWidgetItem(f"#{i+1}   {w}×{h}px")
-            self.list_widget.addItem(item)
-            if i == active_idx:
-                item.setSelected(True)
+    def set_name_change_callback(self, fn):
+        self._name_change_cb = fn
 
+    def refresh(self, sels, active_idx, on_delete):
+        for row in self._rows:
+            self._list_lay.removeWidget(row)
+            row.deleteLater()
+        self._rows.clear()
+
+        for i, s in enumerate(sels):
+            row = SelRow(s, i, self._name_change_cb)
+            row.set_active(i == active_idx)
+            self._list_lay.insertWidget(i, row)
+            self._rows.append(row)
+
+        if active_idx is not None and active_idx < len(self._rows):
+            self._rows[active_idx].update_size(sels[active_idx])
 
 # ── settings dialog ──────────────────────────────────────────────────────────
 
@@ -675,11 +752,6 @@ class SettingsDialog(QtWidgets.QDialog):
         loc_row.addWidget(self._save_edit)
         loc_row.addWidget(browse_btn)
         lay.addLayout(loc_row)
-
-        # ── Filename prefix ────────────────────────────────────────────────
-        lay.addWidget(self._section("Filename Prefix"))
-        self._prefix_edit = QLineEdit(cfg.get("prefix", "crop"))
-        lay.addWidget(self._prefix_edit)
 
         # ── Format + JPEG quality ─────────────────────────────────────────
         lay.addWidget(self._section("Output Format"))
@@ -787,7 +859,6 @@ class SettingsDialog(QtWidgets.QDialog):
 
     def _accept(self):
         self.result_cfg["save_dir"]     = self._save_edit.text().strip()
-        self.result_cfg["prefix"]       = self._prefix_edit.text().strip() or "crop"
         self.result_cfg["format"]       = self._fmt_combo.currentText()
         self.result_cfg["jpeg_quality"] = self._quality_spin.value()
         self.result_cfg["theme"]        = self._theme_combo.currentText().lower()
@@ -850,7 +921,10 @@ class MainWindow(QMainWindow):
         self._splitter.addWidget(self.canvas)
 
         self.side = SidePanel()
-        self.side.list_widget.itemClicked.connect(self._list_clicked)
+        self.side.set_name_change_callback(self._on_sel_name_change)
+        self.side.prefix_edit.setText(self.cfg.get("prefix", "crop"))
+        self.side.prefix_edit.textChanged.connect(
+            lambda t: self._persist("prefix", t.strip() or "crop"))
         self.side.keep_chk.setChecked(self.cfg.get("keep_sels", True))
         self.side.keep_chk.stateChanged.connect(
             lambda: self._persist("keep_sels", self.side.keep_chk.isChecked()))
@@ -1015,8 +1089,12 @@ class MainWindow(QMainWindow):
         self._zoom_lbl.setText(f"{self.canvas.zoom_pct()}%")
 
     def _list_clicked(self, item):
-        row = self.side.list_widget.row(item)
-        self.canvas.activate_sel(row)
+        pass  # rows use direct mouse press
+
+    def _on_sel_name_change(self):
+        """Refresh canvas labels when a name is edited."""
+        for item in self.canvas.sel_items:
+            item._sync()
 
     # ── file handling ─────────────────────────────────────────────────────────
 
@@ -1044,13 +1122,14 @@ class MainWindow(QMainWindow):
         if self.canvas.sels and self.canvas.pil_img and self.side.keep_chk.isChecked():
             for s in self.canvas.sels:
                 if s.fits_in(new_img.width, new_img.height):
-                    restore.append(s.rect())
+                    restore.append((*s.rect(), s.name))
 
         self.canvas.clear_all()
         self.canvas.load_image(new_img)
 
-        for (ix1, iy1, ix2, iy2) in restore:
-            self.canvas.add_sel_image_space(ix1, iy1, ix2, iy2)
+        for item in restore:
+            s = self.canvas.add_sel_image_space(*item[:4])
+            if len(item) > 4: s.name = item[4]
         self.canvas.deactivate()
         self._refresh_list()
 
@@ -1133,7 +1212,7 @@ class MainWindow(QMainWindow):
 
         import threading
         def worker():
-            prefix  = self.cfg.get("prefix", "crop") or "crop"
+            prefix  = self.side.prefix_edit.text().strip() or "crop"
             fmt     = self.cfg.get("format", "PNG")
             quality = self.cfg.get("jpeg_quality", 90)
             ext     = "jpg" if fmt == "JPEG" else fmt.lower()
@@ -1146,7 +1225,9 @@ class MainWindow(QMainWindow):
                     errors.append(f"#{i+1}: zero-size crop")
                     continue
                 crop  = self.canvas.pil_img.crop((ix1, iy1, ix2, iy2))
-                base  = f"{prefix}_{i+1:02d}"
+                slug = s.name.strip() if s.name.strip() else f"{i+1:02d}"
+                slug = "".join(c if c.isalnum() or c in '-_ ' else '_' for c in slug).strip()
+                base  = f"{prefix}_{slug}"
                 fname = f"{base}.{ext}"; n = 1
                 while os.path.exists(os.path.join(sd, fname)):
                     fname = f"{base}_{n}.{ext}"; n += 1
