@@ -32,15 +32,15 @@ if errorlevel 1 (
 REM ── Icon arg ────────────────────────────────────────────────────────────────
 set ICON_ARG=
 if exist "%SCRIPT_DIR%icon.ico" (
-    set ICON_ARG=--icon icon.ico
+    set ICON_ARG=--icon "%SCRIPT_DIR%icon.ico"
 ) else if exist "%SCRIPT_DIR%icon.png" (
-    set ICON_ARG=--icon icon.png
+    set ICON_ARG=--icon "%SCRIPT_DIR%icon.png"
 )
 
 REM ── Data files ───────────────────────────────────────────────────────────────
-set ADD_DATA=--add-data "style.qss;."
+set ADD_DATA=--add-data "%SCRIPT_DIR%style.qss;."
 if exist "%SCRIPT_DIR%icons" (
-    set ADD_DATA=!ADD_DATA! --add-data "icons;icons"
+    set ADD_DATA=!ADD_DATA! --add-data "%SCRIPT_DIR%icons;icons"
 )
 
 REM ── Build — onedir (recommended: faster startup, easier to update) ───────────
@@ -59,7 +59,8 @@ python -m PyInstaller ^
     %ADD_DATA% ^
     --hidden-import PyQt6.sip ^
     --collect-all PyQt6 ^
-    main.py
+    --paths "%SCRIPT_DIR%image_splicer" ^
+    "%SCRIPT_DIR%main.py"
 
 if errorlevel 1 (
     echo =^> Build failed!
