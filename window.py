@@ -33,7 +33,8 @@ import theme as th
 
 # Icons live in  icons/dark/  and  icons/light/
 # The correct subfolder is picked automatically from the current theme.
-_ICONS_ROOT = Path(__file__).parent / "icons"
+# resource_dir() resolves correctly both from source and PyInstaller bundles.
+_ICONS_ROOT = th.resource_dir() / "icons"
 _ICON_SIZE  = QSize(20, 20)
 
 def _icon(name: str, theme: str = "dark") -> QIcon | None:

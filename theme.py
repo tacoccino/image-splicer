@@ -60,12 +60,24 @@ def _dark_tokens(accent: str) -> dict:
     return {**DARK_TOKENS, "accent": accent}
 
 
+def resource_dir() -> Path:
+    """
+    Return the directory containing bundled resources (style.qss, icons/).
+    When running from source this is the directory containing theme.py.
+    When running as a PyInstaller bundle it is sys._MEIPASS.
+    """
+    import sys
+    if getattr(sys, 'frozen', False):
+        return Path(sys._MEIPASS)
+    return Path(__file__).parent
+
+
 def load_qss(qss_dir: Path | None = None) -> str:
     """
-    Load style.qss from qss_dir (defaults to this file's directory).
+    Load style.qss from qss_dir (defaults to resource_dir()).
     Returns empty string if the file is missing — the app still runs, just unstyled.
     """
-    search = qss_dir or Path(__file__).parent
+    search = qss_dir or resource_dir()
     qss_path = search / "style.qss"
     if qss_path.exists():
         return qss_path.read_text()

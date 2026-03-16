@@ -44,7 +44,8 @@ def _app_icon() -> QIcon:
     Looks for icon.png (or .icns on Mac, .ico on Windows) next to main.py.
     Falls back gracefully if the file isn't found.
     """
-    base = Path(__file__).parent
+    from theme import resource_dir
+    base = resource_dir()
     import platform
     candidates = [
         base / "icon.icns",   # macOS native (best quality in dock)

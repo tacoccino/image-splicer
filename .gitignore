@@ -1,4 +1,51 @@
-.vscode
-venv/
+# =============================================================================
+# .gitignore — Image Splicer
+# =============================================================================
+
+# ── Build output ──────────────────────────────────────────────────────────────
+dist/
+build/
+*.spec
+
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+
+# ── User config (saved preferences — machine-specific) ───────────────────────
+~/.image_splicer_config.json
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
+.AppleDouble
+.LSOverride
+*.dmg
+
+# ── Windows ───────────────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── PyInstaller ───────────────────────────────────────────────────────────────
+# Spec files are auto-generated into build/ which is already ignored,
+# but catch any generated at the root just in case
+*.spec
