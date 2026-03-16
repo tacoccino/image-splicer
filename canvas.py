@@ -36,9 +36,11 @@ class SelItem(QGraphicsRectItem):
         self.idx    = idx
         self.canvas = canvas
 
-        self._drag_mode  = None   # None | "move" | edge code string
-        self._drag_start = None   # QPointF scene position at drag start
-        self._orig       = None   # (ix1, iy1, ix2, iy2) snapshot
+        self._drag_mode   = None   # None | "move" | edge code string
+        self._drag_start  = None   # QPointF scene position at drag start
+        self._orig        = None   # (ix1, iy1, ix2, iy2) snapshot
+        self._duplicating = False  # Alt/Option drag-to-duplicate
+        self._dup_ghost   = None   # ghost QGraphicsRectItem during duplicate
 
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -157,36 +159,77 @@ class SelItem(QGraphicsRectItem):
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
             self.canvas.activate_sel(self.idx)
-            self._drag_mode  = self._hit_part(e.pos())
             self._drag_start = e.scenePos()
             self._orig       = self.sel.rect()
+            alt = bool(e.modifiers() & Qt.KeyboardModifier.AltModifier)
+            if alt and self._hit_part(e.pos()) == "move":
+                # Alt+drag — start a duplicate ghost, leave original in place
+                self._duplicating = True
+                self._drag_mode   = "move"
+                x1, y1, x2, y2 = self.sel.rect()
+                self._dup_ghost = QGraphicsRectItem(
+                    QRectF(QPointF(x1, y1), QPointF(x2, y2)))
+                self._dup_ghost.setPen(
+                    QPen(th.C_SEL_ACT, 2, Qt.PenStyle.DashLine))
+                # Show overlay fill on ghost when overlay mode is active,
+                # at half the configured opacity so it reads as a preview
+                if self.canvas.overlay_mode:
+                    ghost_fill = QColor(th.C_OVERLAY)
+                    ghost_fill.setAlpha(max(20, th.OVERLAY_ALPHA // 2))
+                    self._dup_ghost.setBrush(QBrush(ghost_fill))
+                else:
+                    self._dup_ghost.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+                self._dup_ghost.setZValue(10)
+                self.canvas.scene.addItem(self._dup_ghost)
+                self.canvas.setCursor(
+                    QCursor(Qt.CursorShape.DragCopyCursor))
+            else:
+                self._duplicating = False
+                self._drag_mode   = self._hit_part(e.pos())
             e.accept()
 
     def mouseMoveEvent(self, e):
         if self._drag_mode is None:
             return
-        # scenePos() is already image-space — no zoom correction needed
         sp = e.scenePos()
         dx = sp.x() - self._drag_start.x()
         dy = sp.y() - self._drag_start.y()
         x1o, y1o, x2o, y2o = self._orig
-        s = self.sel
-        p = self._drag_mode
-        if   p == "move": s.ix1,s.iy1,s.ix2,s.iy2 = x1o+dx,y1o+dy,x2o+dx,y2o+dy
-        elif p == "TL":   s.ix1,s.iy1 = x1o+dx, y1o+dy
-        elif p == "TR":   s.ix2,s.iy1 = x2o+dx, y1o+dy
-        elif p == "BL":   s.ix1,s.iy2 = x1o+dx, y2o+dy
-        elif p == "BR":   s.ix2,s.iy2 = x2o+dx, y2o+dy
-        elif p == "L":    s.ix1 = x1o+dx
-        elif p == "R":    s.ix2 = x2o+dx
-        elif p == "T":    s.iy1 = y1o+dy
-        elif p == "B":    s.iy2 = y2o+dy
-        self._sync()
-        self.canvas.refresh_list()
+
+        if self._duplicating:
+            # Move ghost only — original stays untouched
+            if self._dup_ghost:
+                self._dup_ghost.setRect(QRectF(
+                    QPointF(x1o + dx, y1o + dy),
+                    QPointF(x2o + dx, y2o + dy)))
+        else:
+            s = self.sel
+            p = self._drag_mode
+            if   p == "move": s.ix1,s.iy1,s.ix2,s.iy2 = x1o+dx,y1o+dy,x2o+dx,y2o+dy
+            elif p == "TL":   s.ix1,s.iy1 = x1o+dx, y1o+dy
+            elif p == "TR":   s.ix2,s.iy1 = x2o+dx, y1o+dy
+            elif p == "BL":   s.ix1,s.iy2 = x1o+dx, y2o+dy
+            elif p == "BR":   s.ix2,s.iy2 = x2o+dx, y2o+dy
+            elif p == "L":    s.ix1 = x1o+dx
+            elif p == "R":    s.ix2 = x2o+dx
+            elif p == "T":    s.iy1 = y1o+dy
+            elif p == "B":    s.iy2 = y2o+dy
+            self._sync()
+            self.canvas.refresh_list()
         e.accept()
 
     def mouseReleaseEvent(self, e):
-        self._drag_mode = None
+        if self._duplicating and self._dup_ghost:
+            r = self._dup_ghost.rect()
+            self.canvas.scene.removeItem(self._dup_ghost)
+            self._dup_ghost = None
+            new_sel = self.canvas.add_sel(
+                r.left(), r.top(), r.right(), r.bottom())
+            new_sel.name = self.sel.name  # carry name over
+            self.canvas.sel_items[-1]._sync()  # refresh label
+            self.canvas.setCursor(QCursor(Qt.CursorShape.CrossCursor))
+        self._duplicating = False
+        self._drag_mode   = None
         e.accept()
 
 
