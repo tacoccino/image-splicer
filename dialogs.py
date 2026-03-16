@@ -103,6 +103,26 @@ class SettingsDialog(QDialog):
         scale_row.addWidget(self._scale_lbl)
         lay.addLayout(scale_row)
 
+        # ── Zoom speed ────────────────────────────────────────────────────
+        lay.addWidget(self._section("Zoom Speed"))
+        zoom_row = QHBoxLayout()
+        self._zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self._zoom_slider.setRange(10, 300)    # 0.1× to 3.0×
+        self._zoom_slider.setSingleStep(10)
+        self._zoom_slider.setPageStep(10)
+        self._zoom_slider.setValue(
+            round(cfg.get("zoom_speed", 1.0) * 100))
+        self._zoom_slider.setTickInterval(50)
+        self._zoom_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self._zoom_speed_lbl = QLabel(
+            f"{cfg.get('zoom_speed', 1.0):.1f}×")
+        self._zoom_speed_lbl.setFixedWidth(36)
+        self._zoom_speed_lbl.setObjectName("dimmed")
+        self._zoom_slider.valueChanged.connect(self._on_zoom_changed)
+        zoom_row.addWidget(self._zoom_slider)
+        zoom_row.addWidget(self._zoom_speed_lbl)
+        lay.addLayout(zoom_row)
+
         # ── Accent colour ──────────────────────────────────────────────────
         lay.addWidget(self._section("Accent Colour"))
         accent_row = QHBoxLayout()
@@ -198,6 +218,14 @@ class SettingsDialog(QDialog):
             self._overlay_color_lbl.setText(self._overlay_color)
             self._update_swatch(self._overlay_swatch, self._overlay_color)
 
+    def _on_zoom_changed(self, v: int) -> None:
+        snapped = round(v / 10) * 10
+        if snapped != v:
+            self._zoom_slider.blockSignals(True)
+            self._zoom_slider.setValue(snapped)
+            self._zoom_slider.blockSignals(False)
+        self._zoom_speed_lbl.setText(f"{snapped / 100:.1f}×")
+
     def _on_scale_changed(self, v: int) -> None:
         snapped = round(v / 10) * 10
         if snapped != v:
@@ -215,4 +243,5 @@ class SettingsDialog(QDialog):
         self.result_cfg["font_scale"]       = self._scale_slider.value() / 100
         self.result_cfg["overlay_color"]   = self._overlay_color
         self.result_cfg["overlay_opacity"] = self._overlay_spin.value()
+        self.result_cfg["zoom_speed"]       = self._zoom_slider.value() / 100
         self.accept()

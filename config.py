@@ -22,6 +22,7 @@ DEFAULTS = {
     "overlay_color":   "#ff0000",
     "overlay_opacity": 30,
     "font_scale":      1.0,
+    "zoom_speed":      1.0,
 }
 
 

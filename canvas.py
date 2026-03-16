@@ -297,6 +297,7 @@ class Canvas(QGraphicsView):
 
         # State
         self.overlay_mode: bool = False   # semi-transparent fill on selections
+        self.zoom_speed:   float = 1.0    # multiplier for scroll zoom (set from cfg)
         self.pil_img:   Image.Image | None = None
         self.zoom:      float              = 1.0
         self._pixmap:   QPixmap | None     = None
@@ -525,10 +526,31 @@ class Canvas(QGraphicsView):
         super().mouseReleaseEvent(e)
 
     def wheelEvent(self, e):
-        if e.angleDelta().y() > 0:
-            self.zoom_in()
+        # Only zoom when Ctrl (or Cmd on Mac) is held.
+        # Plain scroll without modifier is ignored — this prevents accidental
+        # zooming on trackpads and frees two-finger scroll for other gestures.
+        ctrl = Qt.KeyboardModifier.ControlModifier
+        meta = Qt.KeyboardModifier.MetaModifier
+        if not (e.modifiers() & ctrl or e.modifiers() & meta):
+            e.ignore()
+            return
+
+        delta = e.angleDelta().y()
+        if delta == 0:
+            e.ignore()
+            return
+
+        # Scale the zoom step by the delta magnitude so trackpad inertia
+        # feels proportional rather than firing many fixed 1.25× jumps.
+        # A standard mouse wheel click is 120 units; we treat that as the
+        # baseline for the 1.25× step, scaled by zoom_speed.
+        base_step = 0.25 * self.zoom_speed   # 0.25 = the '1.25 - 1' increment
+        step = base_step * (abs(delta) / 120.0)
+        step = min(step, 0.5)                 # cap so one big swipe isn't jarring
+        if delta > 0:
+            self.set_zoom(self.zoom * (1.0 + step))
         else:
-            self.zoom_out()
+            self.set_zoom(self.zoom / (1.0 + step))
         e.accept()
 
     def keyPressEvent(self, e):

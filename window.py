@@ -122,6 +122,7 @@ class MainWindow(QMainWindow):
         self.canvas.refresh_list = self._refresh_list
         self.canvas.on_sel_hover = self._on_sel_hover
         self.canvas.on_sel_leave = self._on_sel_leave
+        self.canvas.zoom_speed   = self.cfg.get("zoom_speed", 1.0)
 
         root.addWidget(self._build_toolbar())
 
@@ -199,8 +200,8 @@ class MainWindow(QMainWindow):
         self._zoom_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._btn_fit   = ibtn("⊡", f"Fit image to window  ({m}+0)", icon_name="fit")
-        self._btn_zin   = ibtn("+", f"Zoom in  ({m}+=)",  icon_name="zoom_in")
-        self._btn_zout  = ibtn("−", f"Zoom out  ({m}+−)", icon_name="zoom_out")
+        self._btn_zin   = ibtn("+", f"Zoom in  ({m}+=  or  {m}+Scroll)",  icon_name="zoom_in")
+        self._btn_zout  = ibtn("−", f"Zoom out  ({m}+−  or  {m}+Scroll)", icon_name="zoom_out")
         self._btn_panel = ibtn("▐", f"Show/hide selections panel  ({self._mod}+\\)")
         for b in (self._btn_fit, self._btn_zin, self._btn_zout, self._btn_panel):
             b.setFixedWidth(38)
@@ -309,7 +310,7 @@ class MainWindow(QMainWindow):
         """Show contextual hints in the status bar when hovering a selection."""
         m = self._mod
         if part == "move":
-            hint = f"Drag to move  ·  {m}+Alt+drag to duplicate  ·  Right-click for more"
+            hint = "Drag to move  ·  Alt+drag to duplicate  ·  Right-click for more"
         else:
             hint = "Drag edge/corner to resize"
         self.statusBar().showMessage(hint)
@@ -403,6 +404,7 @@ class MainWindow(QMainWindow):
             save_cfg(self.cfg)
             th.apply_theme(self.cfg, self.canvas.sel_items)
             self._reload_icons()
+            self.canvas.zoom_speed = self.cfg.get("zoom_speed", 1.0)
             self._refresh_list()  # re-apply active row highlight in new theme
             self._status("Settings saved.")
 
