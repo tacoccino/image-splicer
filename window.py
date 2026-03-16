@@ -241,7 +241,8 @@ class MainWindow(QMainWindow):
         sc("Delete",    self.canvas.delete_active)
         sc("Backspace", self.canvas.delete_active)
         sc("Escape",    self._cancel_draw)
-        sc(f"{m}+T",    self._toggle_overlay)
+        # Note: on macOS Qt maps Ctrl→Cmd and Meta→Control for non-standard keys
+        sc("Ctrl+T",    self._toggle_overlay)
 
     # ── zoom ──────────────────────────────────────────────────────────────────
 

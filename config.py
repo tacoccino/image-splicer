@@ -20,7 +20,8 @@ DEFAULTS = {
     "accent":       "#e94560",
     "keep_sels":      True,
     "overlay_color":   "#ff0000",
-    "overlay_opacity": 80,
+    "overlay_opacity": 30,
+    "font_scale":      1.0,
 }
 
 

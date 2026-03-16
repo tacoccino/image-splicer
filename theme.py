@@ -1,3 +1,4 @@
+import re
 """
 theme.py — stylesheet loading and theme application.
 
@@ -96,6 +97,13 @@ def apply_theme(cfg: dict, canvas_sel_items: list | None = None,
     for key in DARK_TOKENS:
         qss = qss.replace(DARK_TOKENS[key], tokens[key])
 
+    # Scale all font sizes by the user's font_scale factor
+    scale = cfg.get("font_scale", 1.0)
+    if scale != 1.0:
+        def _scale_pt(m):
+            return f"{max(1, round(int(m.group(1)) * scale))}pt"
+        qss = re.sub(r'(\d+)pt', _scale_pt, qss)
+
     app = QApplication.instance()
     if app:
         app.setStyleSheet(qss)
@@ -119,7 +127,7 @@ C_PANEL   = QColor(DARK_TOKENS["panel"])
 
 # Overlay fill — updated from config by apply_theme()
 C_OVERLAY    = "#ff0000"   # overlay fill colour (hex string)
-OVERLAY_ALPHA = 80          # 0–255 opacity
+OVERLAY_ALPHA = 76          # 0–255 (stored as 0–100% in config)
 C_ACCENT  = QColor(DARK_TOKENS["accent"])
 C_GREEN   = QColor("#27ae60")
 C_TEXT    = QColor(DARK_TOKENS["text"])
@@ -142,4 +150,4 @@ def _update_colour_globals(accent: str, cfg: dict | None = None) -> None:
     C_SEL_ACT = QColor(accent).lighter(130)
     if cfg:
         C_OVERLAY    = cfg.get("overlay_color",   "#ff0000")
-        OVERLAY_ALPHA = cfg.get("overlay_opacity",  80)
+        OVERLAY_ALPHA = round(cfg.get("overlay_opacity", 30) * 255 / 100)

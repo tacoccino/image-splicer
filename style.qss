@@ -129,7 +129,7 @@ QComboBox {
     font-size: 9pt;
     min-height: 24px;
 }
-QComboBox:hover { border-color: #e94560; }
+QComboBox:hover  { border-color: #e94560; }
 QComboBox::drop-down {
     subcontrol-origin: padding;
     subcontrol-position: right center;
@@ -232,3 +232,31 @@ QDialog QLabel {
 
 /* ── Named separators ────────────────────────────────────────────────────── */
 QFrame#accent_sep { color: #e94560; background: #e94560; }
+
+/* ── Slider ──────────────────────────────────────────────────────────────── */
+QSlider::groove:horizontal {
+    height: 4px;
+    background: #8888aa;
+    border-radius: 2px;
+}
+QSlider::sub-page:horizontal {
+    background: #e94560;
+    border-radius: 2px;
+}
+QSlider::handle:horizontal {
+    background: #eaeaea;
+    border: 2px solid #e94560;
+    width: 14px;
+    height: 14px;
+    margin: -6px 0;
+    border-radius: 7px;
+}
+QSlider::handle:horizontal:hover {
+    background: #e94560;
+    border-color: #eaeaea;
+}
+QSlider::tick-mark:horizontal {
+    background: #8888aa;
+    width: 1px;
+    height: 4px;
+}

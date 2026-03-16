@@ -10,7 +10,8 @@ from PyQt6 import QtWidgets
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                               QLineEdit, QPushButton, QComboBox, QWidget,
-                              QFileDialog)
+                              QFileDialog, QSlider)
+from PyQt6.QtCore import Qt
 
 
 class SettingsDialog(QDialog):
@@ -81,6 +82,27 @@ class SettingsDialog(QDialog):
         theme_row.addStretch()
         lay.addLayout(theme_row)
 
+        # ── Font scale ────────────────────────────────────────────────────
+        lay.addWidget(self._section("Font Scale"))
+        scale_row = QHBoxLayout()
+        self._scale_slider = QSlider(Qt.Orientation.Horizontal)
+        self._scale_slider.setRange(80, 160)   # 0.8× to 1.6×
+        self._scale_slider.setSingleStep(10)   # snap to 0.1 increments
+        self._scale_slider.setPageStep(10)
+        self._scale_slider.setValue(
+            round(cfg.get("font_scale", 1.0) * 10) * 10)  # snap on load
+        self._scale_slider.setTickInterval(10)
+        self._scale_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self._scale_lbl = QLabel(
+            f"{cfg.get('font_scale', 1.0):.1f}×")
+        self._scale_lbl.setFixedWidth(36)
+        self._scale_lbl.setObjectName("dimmed")
+        # Snap to nearest 10 on release so drag always lands on a tick
+        self._scale_slider.valueChanged.connect(self._on_scale_changed)
+        scale_row.addWidget(self._scale_slider)
+        scale_row.addWidget(self._scale_lbl)
+        lay.addLayout(scale_row)
+
         # ── Accent colour ──────────────────────────────────────────────────
         lay.addWidget(self._section("Accent Colour"))
         accent_row = QHBoxLayout()
@@ -111,11 +133,12 @@ class SettingsDialog(QDialog):
         overlay_row.addWidget(self._overlay_swatch)
         overlay_row.addWidget(self._overlay_color_lbl)
         overlay_row.addSpacing(16)
-        overlay_row.addWidget(QLabel("Opacity (0–255):"))
+        overlay_row.addWidget(QLabel("Opacity:"))
         self._overlay_spin = QtWidgets.QSpinBox()
-        self._overlay_spin.setRange(0, 255)
-        self._overlay_spin.setValue(cfg.get("overlay_opacity", 80))
+        self._overlay_spin.setRange(0, 100)
+        self._overlay_spin.setValue(cfg.get("overlay_opacity", 30))
         self._overlay_spin.setFixedWidth(70)
+        self._overlay_spin.setSuffix("%")
         overlay_row.addWidget(self._overlay_spin)
         overlay_row.addStretch()
         lay.addLayout(overlay_row)
@@ -175,12 +198,21 @@ class SettingsDialog(QDialog):
             self._overlay_color_lbl.setText(self._overlay_color)
             self._update_swatch(self._overlay_swatch, self._overlay_color)
 
+    def _on_scale_changed(self, v: int) -> None:
+        snapped = round(v / 10) * 10
+        if snapped != v:
+            self._scale_slider.blockSignals(True)
+            self._scale_slider.setValue(snapped)
+            self._scale_slider.blockSignals(False)
+        self._scale_lbl.setText(f"{snapped / 100:.1f}×")
+
     def _accept(self) -> None:
         self.result_cfg["save_dir"]     = self._save_edit.text().strip()
         self.result_cfg["format"]       = self._fmt_combo.currentText()
         self.result_cfg["jpeg_quality"] = self._quality_spin.value()
         self.result_cfg["theme"]        = self._theme_combo.currentText().lower()
         self.result_cfg["accent"]          = self._accent_color
+        self.result_cfg["font_scale"]       = self._scale_slider.value() / 100
         self.result_cfg["overlay_color"]   = self._overlay_color
         self.result_cfg["overlay_opacity"] = self._overlay_spin.value()
         self.accept()
