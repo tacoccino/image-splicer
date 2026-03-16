@@ -140,7 +140,7 @@ class SelRow(QWidget):
 
     def set_active(self, active: bool) -> None:
         # Read live resolved colours so this works in both themes
-        bg = th.CURRENT_TOKENS["btn_top"] if active else "transparent"
+        bg = th.CURRENT_TOKENS["surface_hi"] if active else "transparent"
         fg = th.CURRENT_TOKENS["text"]
         self.setStyleSheet(
             f"QWidget {{ background: {bg}; border-radius: 3px; }}"

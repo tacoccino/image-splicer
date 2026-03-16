@@ -28,8 +28,8 @@ from PyQt6.QtWidgets import QApplication
 # These exact hex strings must appear in style.qss.
 # The mapping is: token_name → hex_value_in_qss
 DARK_TOKENS = {
-    "btn_top":   "#1a4070",   # top of button gradient
-    "btn_base":  "#0f3460",   # base/bottom of button gradient, inputs
+    "surface_hi": "#1a4070",  # hover fills, active inputs, lighter surfaces
+    "surface":    "#0f3460",  # input backgrounds, pressed states, borders
     "panel":     "#16213e",   # toolbar, side panel, list backgrounds
     "bg":        "#1a1a2e",   # window / dialog background
     "canvas":    "#0d0d1a",   # graphics view background
@@ -43,8 +43,8 @@ DARK_TOKENS = {
 def _light_tokens(accent: str) -> dict:
     """Return token→value mapping for light theme."""
     return {
-        "btn_top":    "#cad4e8",
-        "btn_base":   "#b8c4d8",
+        "surface_hi": "#cad4e8",
+        "surface":    "#b8c4d8",
         "panel":      "#dde1ea",
         "bg":         "#f0f2f5",
         "canvas":     "#c0c4d0",

@@ -6,8 +6,8 @@
   and _light_tokens() instead, then use those values here.
 
   Token reference:
-    #1a4070  btn_top    — lighter button / hover fill
-    #0f3460  btn_base   — darker button / input background
+    #1a4070  surface_hi — hover fills, active inputs, lighter surfaces
+    #0f3460  surface    — input backgrounds, pressed states, borders
     #16213e  panel      — toolbar, sidepanel, list backgrounds
     #1a1a2e  bg         — window / dialog background
     #0d0d1a  canvas     — graphics view background
