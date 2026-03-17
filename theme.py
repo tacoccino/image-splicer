@@ -94,36 +94,37 @@ def resource_dir() -> Path:
 
 
 def themes_dir() -> Path:
+    """Bundled themes directory — ships with the app, read-only."""
     return resource_dir() / "themes"
+
+
+def user_themes_dir() -> Path:
+    """User themes directory — ~/.imagesplicer/themes/, user-editable."""
+    from config import user_themes_dir as _utd
+    return _utd()
 
 
 def icon_variant(theme_name: str) -> str:
     """
     Return "dark" or "light" icon variant for the given theme name.
-    Reads the JSON 'base' field; falls back to name-based guess.
+    Searches user themes first, then bundled themes.
     """
-    td = themes_dir()
-    if td.exists():
-        for p in td.glob("*.json"):
-            try:
-                data = json.loads(p.read_text())
-                if data.get("name") == theme_name:
-                    return data.get("base", "dark").lower()
-            except Exception:
-                pass
+    for td in (user_themes_dir(), themes_dir()):
+        if td.exists():
+            for p in td.glob("*.json"):
+                try:
+                    data = json.loads(p.read_text())
+                    if data.get("name") == theme_name:
+                        return data.get("base", "dark").lower()
+                except Exception:
+                    pass
     return "light" if "light" in theme_name.lower() else "dark"
 
 
 # ── theme discovery ───────────────────────────────────────────────────────────
 
-def list_themes() -> list[tuple[str, Path]]:
-    """
-    Return a list of (display_name, path) for all available themes.
-
-    Scans themes/ for *.json files.  Falls back to the two built-in themes
-    ("Dark", "Light") if the directory is missing or empty.
-    """
-    td = themes_dir()
+def _load_themes_from_dir(td: Path) -> list[tuple[str, Path]]:
+    """Load all valid theme JSON files from a directory."""
     results = []
     if td.exists():
         for p in sorted(td.glob("*.json")):
@@ -132,13 +133,51 @@ def list_themes() -> list[tuple[str, Path]]:
                 name = data.get("name") or p.stem.replace("_", " ").title()
                 results.append((name, p))
             except Exception:
-                pass  # skip malformed files silently
+                pass
+    return results
+
+
+def list_themes() -> list[tuple[str, Path]]:
+    """
+    Return a list of (display_name, path) for all available themes.
+
+    Merges bundled themes (shipped with the app) and user themes
+    (~/.imagesplicer/themes/).  User themes take precedence — if a user
+    theme has the same name as a bundled theme, the user version wins.
+    Falls back to built-in Dark/Light if no JSON files are found at all.
+    """
+    bundled = _load_themes_from_dir(themes_dir())
+    user    = _load_themes_from_dir(user_themes_dir())
+
+    # Merge: start with bundled, let user themes override by name
+    merged: dict[str, Path] = {name: path for name, path in bundled}
+    for name, path in user:
+        merged[name] = path   # user wins on name collision
+
+    results = list(merged.items())
 
     if not results:
-        # Fallback — no JSON files found, advertise the two built-ins
         results = [("Dark", None), ("Light", None)]
 
     return results
+
+
+def default_accent(theme_name: str) -> str:
+    """
+    Return the accent colour defined in the theme JSON itself,
+    without any user override applied.
+    Falls back to DARK_TOKENS['accent'] if not specified.
+    """
+    for td in (user_themes_dir(), themes_dir()):
+        if td.exists():
+            for p in td.glob("*.json"):
+                try:
+                    data = json.loads(p.read_text())
+                    if data.get("name") == theme_name:
+                        return data.get("accent", DARK_TOKENS["accent"])
+                except Exception:
+                    pass
+    return DARK_TOKENS["accent"]
 
 
 def load_theme_tokens(theme_name: str, accent: str) -> dict:

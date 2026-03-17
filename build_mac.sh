@@ -47,6 +47,8 @@ fi
 THEMES_ARG=""
 if [ -d "$SCRIPT_DIR/image_splicer/themes" ]; then
     THEMES_ARG="--add-data $SCRIPT_DIR/image_splicer/themes:themes"
+elif [ -d "$SCRIPT_DIR/themes" ]; then
+    THEMES_ARG="--add-data $SCRIPT_DIR/themes:themes"
 fi
 
 # ── Run PyInstaller ───────────────────────────────────────────────────────────

@@ -1,24 +1,59 @@
 """
 config.py — load and save user configuration.
 
-The config file lives at ~/.image_splicer_config.json.
-All keys are optional; callers should use .get() with a default.
+All user data lives in ~/.imagesplicer/:
+  config.json   — app settings
+  themes/       — user-created theme JSON files
+
+This directory is created on first use if it doesn't exist.
 """
 
 import json
 from pathlib import Path
 
-CONFIG_FILE = Path.home() / ".image_splicer_config.json"
+# ── user directory ────────────────────────────────────────────────────────────
 
-# Defaults used throughout the app
+def user_dir() -> Path:
+    """Return ~/.imagesplicer/, creating it if necessary."""
+    d = Path.home() / ".imagesplicer"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+def user_themes_dir() -> Path:
+    """Return ~/.imagesplicer/themes/, creating it if necessary."""
+    d = user_dir() / "themes"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+CONFIG_FILE = user_dir() / "config.json"
+
+# ── migrate old config if present ────────────────────────────────────────────
+_OLD_CONFIG = Path.home() / ".image_splicer_config.json"
+
+
+def _migrate():
+    """Move the old flat config file into the new user dir, once."""
+    if _OLD_CONFIG.exists() and not CONFIG_FILE.exists():
+        try:
+            CONFIG_FILE.write_text(_OLD_CONFIG.read_text())
+            _OLD_CONFIG.unlink()
+        except Exception:
+            pass
+
+_migrate()
+
+# ── defaults ──────────────────────────────────────────────────────────────────
+
 DEFAULTS = {
-    "save_dir":     "",
-    "prefix":       "crop",
-    "format":       "PNG",
-    "jpeg_quality": 90,
-    "theme":        "dark",
-    "accent":       "#e94560",
-    "keep_sels":      True,
+    "save_dir":        "",
+    "prefix":          "crop",
+    "format":          "PNG",
+    "jpeg_quality":    90,
+    "theme":           "Dark",
+    "accent":          "#e94560",
+    "keep_sels":       True,
     "overlay_color":   "#ff0000",
     "overlay_opacity": 30,
     "font_scale":      1.0,
@@ -41,6 +76,7 @@ def load_cfg() -> dict:
 def save_cfg(cfg: dict) -> None:
     """Persist config to disk. Silently swallows errors."""
     try:
+        user_dir()  # ensure dir exists
         CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
     except Exception:
         pass

@@ -86,11 +86,12 @@ class SettingsDialog(QDialog):
         if saved == "light": saved = "Light"
         if saved in self._theme_names:
             self._theme_combo.setCurrentText(saved)
+        self._theme_combo.currentTextChanged.connect(self._on_theme_changed)
         theme_row.addWidget(self._theme_combo)
         theme_row.addStretch()
         lay.addLayout(theme_row)
         themes_row = QHBoxLayout()
-        hint = QLabel("Add .json files to the themes/ folder to create custom themes")
+        hint = QLabel("Add .json files to  ~/.imagesplicer/themes/  to create custom themes")
         hint.setObjectName("dimmed")
         hint.setWordWrap(True)
         themes_row.addWidget(hint, stretch=1)
@@ -148,8 +149,7 @@ class SettingsDialog(QDialog):
         # Resolve the theme's default accent so we can show a reset button
         theme_name = cfg.get("theme", "Dark")
         if theme_name in ("dark", "light"): theme_name = theme_name.title()
-        default_tokens = th.load_theme_tokens(theme_name, "#e94560")
-        self._default_accent = default_tokens["accent"]
+        self._default_accent = th.default_accent(theme_name)
         self._accent_swatch = QPushButton()
         self._accent_swatch.setFixedSize(32, 32)
         self._accent_swatch.setObjectName("accent_swatch")
@@ -277,12 +277,19 @@ class SettingsDialog(QDialog):
         self._scale_lbl.setText(f"{snapped / 100:.1f}×")
 
     def _open_themes_folder(self) -> None:
-        import os
         from PyQt6 import QtCore, QtGui
-        folder = th.themes_dir()
-        folder.mkdir(parents=True, exist_ok=True)
+        folder = th.user_themes_dir()
+        # user_themes_dir() already creates the folder if needed
         QtGui.QDesktopServices.openUrl(
             QtCore.QUrl.fromLocalFile(str(folder)))
+
+    def _on_theme_changed(self, theme_name: str) -> None:
+        """Update default accent and reset button when theme selection changes."""
+        self._default_accent = th.default_accent(theme_name)
+        self._accent_reset.setToolTip(
+            f"Reset to theme default ({self._default_accent})")
+        self._accent_reset.setVisible(
+            self._accent_color.lower() != self._default_accent.lower())
 
     def _load_reset_icon(self) -> QIcon | None:
         """Load the reset icon from the theme-appropriate icons/ folder."""

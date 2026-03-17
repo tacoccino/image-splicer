@@ -44,6 +44,8 @@ if exist "%SCRIPT_DIR%icons" (
 )
 if exist "%SCRIPT_DIR%image_splicer\themes" (
     set ADD_DATA=!ADD_DATA! --add-data "%SCRIPT_DIR%image_splicer\themes;themes"
+) else if exist "%SCRIPT_DIR%themes" (
+    set ADD_DATA=!ADD_DATA! --add-data "%SCRIPT_DIR%themes;themes"
 )
 
 REM ── Build — onedir (recommended: faster startup, easier to update) ───────────
