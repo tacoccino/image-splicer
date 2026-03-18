@@ -229,15 +229,41 @@ def load_theme_tokens(theme_name: str, accent: str) -> dict:
 
 # ── QSS loading ───────────────────────────────────────────────────────────────
 
+def _available_fonts() -> set[str]:
+    """Return lowercase set of font families available on this system."""
+    try:
+        from PyQt6.QtGui import QFontDatabase
+        return {f.lower() for f in QFontDatabase.families()}
+    except Exception:
+        return set()
+
+
 def load_qss(qss_dir: Path | None = None) -> str:
     """
     Load style.qss.  Returns empty string if missing — app still runs unstyled.
+    Strips font families from the font stack that aren't installed, preventing
+    Qt's 'Populating font family aliases' warning on systems where e.g. Inter
+    is not available.
     """
     search = qss_dir or resource_dir()
     qss_path = search / "style.qss"
-    if qss_path.exists():
-        return qss_path.read_text()
-    return ""
+    if not qss_path.exists():
+        return ""
+    qss = qss_path.read_text()
+    # Remove any font family name that isn't installed so Qt doesn't
+    # spend time doing alias lookups for missing fonts.
+    available = _available_fonts()
+    if available:  # skip if QFontDatabase unavailable (e.g. headless)
+        import re as _re
+        def _filter_families(m):
+            families = [f.strip().strip('"') for f in m.group(1).split(',')]
+            kept = [f'"{f}"' for f in families
+                    if f.lower() in available or f.lower() == 'sans-serif'
+                    or f.lower() == 'monospace']
+            return f'font-family: {", ".join(kept)};' if kept else m.group(0)
+        qss = _re.sub(
+            r'font-family:\s*([^;]+);', _filter_families, qss)
+    return qss
 
 
 # ── theme application ─────────────────────────────────────────────────────────

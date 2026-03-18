@@ -370,10 +370,15 @@ class MainWindow(QMainWindow):
     # ── file handling ─────────────────────────────────────────────────────────
 
     def _open_file(self) -> None:
+        # Start in the last-used folder, fall back to home dir
+        last = self.cfg.get("last_open_dir", "")
+        if not last or not os.path.isdir(last):
+            last = str(Path.home())
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Image", "",
+            self, "Open Image", last,
             "Images (*.png *.jpg *.jpeg *.bmp *.tiff *.webp *.gif);;All Files (*)")
         if path:
+            self._persist("last_open_dir", str(Path(path).parent))
             self._try_load(path)
 
     def _try_load(self, path: str) -> None:
