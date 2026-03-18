@@ -214,11 +214,21 @@ class SidePanel(QWidget):
         lay.addWidget(prefix_lbl)
 
         self.prefix_edit = QLineEdit()
-        self.prefix_edit.setPlaceholderText("crop")
-        self.prefix_edit.setToolTip("Prefix for saved filenames: prefix_name.ext")
+        self.prefix_edit.setPlaceholderText("none")
+        self.prefix_edit.setToolTip("Prefix prepended to every saved filename")
         lay.addWidget(self.prefix_edit)
 
-        # Keep-selections checkbox
+        # Filename pattern field
+        pattern_lbl = QLabel("Filename pattern:")
+        pattern_lbl.setObjectName("dimmed")
+        lay.addWidget(pattern_lbl)
+
+        self.pattern_edit = QLineEdit()
+        self.pattern_edit.setPlaceholderText("_%n  (default)")
+        self.pattern_edit.setToolTip("Filename pattern — available tokens:\n  %p  prefix\n  %f  original image filename (no extension)\n  %n  crop name (falls back to index if unnamed)\n  %i  index  (e.g. 1, 2, 3)\n  %i2 zero-padded index with 2 digits  (e.g. 01, 02)\n  %i3 zero-padded index with 3 digits  (e.g. 001, 002)\n\nExample:  %p_%f_%i2  →  crop_photo_01.png\nLeave blank to use default:  prefix_name.ext")
+        lay.addWidget(self.pattern_edit)
+
+        # Keep-crops checkbox
         self.keep_chk = QCheckBox("Keep crops")
         self.keep_chk.setToolTip(
             "When loading a new image, keep crops that fit within its bounds")

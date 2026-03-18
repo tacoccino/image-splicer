@@ -48,7 +48,7 @@ _migrate()
 
 DEFAULTS = {
     "save_dir":        "",
-    "prefix":          "crop",
+    "prefix":          "",
     "format":          "PNG",
     "jpeg_quality":    90,
     "theme":           "Dark",
@@ -58,6 +58,7 @@ DEFAULTS = {
     "overlay_opacity": 30,
     "font_scale":      1.0,
     "zoom_speed":      1.0,
+    "filename_pattern": "",
 }
 
 

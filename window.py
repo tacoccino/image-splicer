@@ -11,6 +11,7 @@ It wires together all the other modules and handles:
 """
 
 import os
+import re
 import platform
 import threading
 from pathlib import Path
@@ -134,9 +135,12 @@ class MainWindow(QMainWindow):
         self.side = SidePanel()
         self.side.set_name_change_callback(self._on_sel_name_change)
         self.side.set_row_click_callback(self._on_row_click)
-        self.side.prefix_edit.setText(self.cfg.get("prefix", "crop"))
+        self.side.prefix_edit.setText(self.cfg.get("prefix", ""))
         self.side.prefix_edit.textChanged.connect(
-            lambda t: self._persist("prefix", t.strip() or "crop"))
+            lambda t: self._persist("prefix", t.strip()))
+        self.side.pattern_edit.setText(self.cfg.get("filename_pattern", ""))
+        self.side.pattern_edit.textChanged.connect(
+            lambda t: self._persist("filename_pattern", t.strip()))
         self.side.keep_chk.setChecked(self.cfg.get("keep_sels", True))
         self.side.keep_chk.stateChanged.connect(
             lambda: self._persist("keep_sels", self.side.keep_chk.isChecked()))
@@ -466,6 +470,56 @@ class MainWindow(QMainWindow):
         self.cfg[key] = val
         save_cfg(self.cfg)
 
+    @staticmethod
+    def _resolve_filename(pattern: str, prefix: str, image_stem: str,
+                          idx: int, crop_name: str) -> str:
+        """
+        Expand filename pattern tokens into a base filename (no extension).
+
+        Tokens:
+          %f   — original image filename stem (no extension)
+          %n   — crop name (falls back to zero-padded index if unnamed)
+          %i   — index (no padding)
+          %iN  — index zero-padded to N digits  (e.g. %i2 → '03')
+
+        The prefix is concatenated directly before the pattern result — the
+        separator (if any) is part of the pattern itself.
+        Default pattern is _%n, giving:  prefix_cropname
+        Empty prefix + pattern _%n gives: _cropname — so set prefix or pattern
+        accordingly.
+        """
+        # Use default pattern if none set — _%n gives 'prefix_cropname'
+        if not pattern.strip():
+            pattern = "_%n"
+
+        result = pattern
+
+        # %iN — padded index (must come before bare %i)
+        def _pad(m):
+            digits = int(m.group(1))
+            return str(idx).zfill(digits)
+        result = re.sub(r'%i(\d+)', _pad, result)
+
+        # %i — bare index
+        result = result.replace('%i', str(idx))
+
+        # %f — image filename stem
+        result = result.replace('%f', image_stem)
+
+        # %n — crop name (fall back to zero-padded index)
+        name_slug = crop_name if crop_name else f"{idx:02d}"
+        name_slug = "".join(
+            c if c.isalnum() or c in '-_ ' else '_' for c in name_slug).strip()
+        result = result.replace('%n', name_slug)
+
+        # Sanitise any remaining characters unsafe for filesystems
+        result = "".join(
+            c if c.isalnum() or c in '-_ ()' else '_' for c in result).strip()
+
+        # Prefix is concatenated directly — separator is part of the pattern
+        full = f"{prefix}{result}".strip()
+        return full or f"{idx:02d}"
+
     def _save_crops(self) -> None:
         if not self.canvas.pil_img:
             QMessageBox.warning(self, "No Image", "Open an image first.")
@@ -481,12 +535,15 @@ class MainWindow(QMainWindow):
             return
 
         # Snapshot everything we need before handing off to the thread
-        prefix  = self.side.prefix_edit.text().strip() or "crop"
-        fmt     = self.cfg.get("format", "PNG")
-        quality = self.cfg.get("jpeg_quality", 90)
-        ext     = "jpg" if fmt == "JPEG" else fmt.lower()
-        pil_img = self.canvas.pil_img
-        sels    = list(self.canvas.sels)  # shallow copy; Sel is mutable but coords won't change mid-save
+        prefix   = self.side.prefix_edit.text().strip()
+        pattern  = self.side.pattern_edit.text().strip()
+        fmt      = self.cfg.get("format", "PNG")
+        quality  = self.cfg.get("jpeg_quality", 90)
+        ext      = "jpg" if fmt == "JPEG" else fmt.lower()
+        pil_img  = self.canvas.pil_img
+        sels     = list(self.canvas.sels)
+        # Image filename stem for %f token
+        img_stem = Path(getattr(pil_img, 'filename', '') or '').stem or 'image'
 
         def worker():
             saved, errors = [], []
@@ -499,8 +556,8 @@ class MainWindow(QMainWindow):
                     errors.append(f"#{i+1}: zero-size crop")
                     continue
                 crop  = pil_img.crop((ix1, iy1, ix2, iy2))
-                slug  = s.filename_slug(i + 1)
-                base  = f"{prefix}_{slug}"
+                base  = self._resolve_filename(
+                    pattern, prefix, img_stem, i + 1, s.name.strip())
                 fname = f"{base}.{ext}"
                 n = 1
                 while os.path.exists(os.path.join(sd, fname)):
